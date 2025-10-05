@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useSocket } from '../context/SocketContext';
 
 const MessageList = () => {
-  const { messages, typingUsers, reactToMessage } = useSocket();
+  const { messages, typingUsers, socket } = useSocket();
   const messagesEndRef = useRef(null);
 
   useEffect(() => {

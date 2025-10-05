@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSocket } from '../context/SocketContext';
 
 const ChatRoom = () => {
@@ -6,21 +6,19 @@ const ChatRoom = () => {
     messages,
     users,
     typingUsers,
+    socket,
     currentUser,
     activeRoom,
-    roomUsers,
     sendMessage,
     setTyping,
     changeRoom,
     isConnected,
-    privateMessages,
-    reactToMessage,
-    markMessageRead
+    reactToMessage
   } = useSocket();
 
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [availableRooms, setAvailableRooms] = useState(['general', 'random', 'tech', 'support']);
+  const [availableRooms] = useState(['general', 'random', 'tech', 'support']);
   const [showUserList, setShowUserList] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);

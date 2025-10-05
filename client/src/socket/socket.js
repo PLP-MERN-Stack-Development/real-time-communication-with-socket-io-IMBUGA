@@ -1,5 +1,6 @@
 // socket.js - Enhanced Socket.io client setup to match server
 import { io } from 'socket.io-client';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 // Socket.io connection URL
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
@@ -24,92 +25,98 @@ export const useSocket = () => {
   const [availableRooms, setAvailableRooms] = useState(['general', 'random', 'tech', 'support']);
   const [privateMessages, setPrivateMessages] = useState(new Map());
   const [messageReactions, setMessageReactions] = useState(new Map());
+  
+  // Use refs for values that don't need re-renders
+  const socketRef = useRef(socket);
+  const currentRoomRef = useRef(currentRoom);
+
+  // Update ref when currentRoom changes
+  useEffect(() => {
+    currentRoomRef.current = currentRoom;
+  }, [currentRoom]);
 
   // Connect to socket server with room support
-  const connect = (userData) => {
-    socket.connect();
+  const connect = useCallback((userData) => {
+    socketRef.current.connect();
     if (userData) {
-      socket.emit('user_join', userData);
+      socketRef.current.emit('user_join', userData);
       setCurrentRoom(userData.room || 'general');
     }
-  };
+  }, []);
 
   // Disconnect from socket server
-  const disconnect = () => {
-    socket.disconnect();
-  };
+  const disconnect = useCallback(() => {
+    socketRef.current.disconnect();
+  }, []);
 
   // Send a message with room support
-  const sendMessage = (messageData) => {
+  const sendMessage = useCallback((messageData) => {
     const tempId = Date.now().toString();
-    const messageWithTempId = {
-      ...messageData,
-      tempId,
-      timestamp: new Date().toISOString()
-    };
-    
-    socket.emit('send_message', messageData);
     
     // Optimistically add message
     setMessages(prev => [...prev, {
-      ...messageWithTempId,
-      sender: messageData.sender || 'You',
-      senderId: socket.id,
-      tempId
+      ...messageData,
+      tempId,
+      sender: 'You', // Temporary until server confirms
+      senderId: socketRef.current.id,
+      timestamp: new Date().toISOString()
     }]);
     
+    socketRef.current.emit('send_message', messageData);
     return tempId;
-  };
+  }, []);
 
   // Send a private message with enhanced data
-  const sendPrivateMessage = (toUserId, message) => {
+  const sendPrivateMessage = useCallback((toUserId, message) => {
     const tempId = Date.now().toString();
-    socket.emit('private_message', { 
+    socketRef.current.emit('private_message', { 
       toUserId, 
       message,
       tempId 
     });
     return tempId;
-  };
+  }, []);
 
   // Change room
-  const changeRoom = (newRoom) => {
-    socket.emit('change_room', newRoom);
+  const changeRoom = useCallback((newRoom) => {
+    socketRef.current.emit('change_room', newRoom);
     setCurrentRoom(newRoom);
     setMessages([]); // Clear messages for new room
-  };
+  }, []);
 
   // Set typing status with room awareness
-  const setTyping = (isTyping) => {
-    socket.emit('typing', isTyping);
-  };
+  const setTyping = useCallback((isTyping) => {
+    socketRef.current.emit('typing', isTyping);
+  }, []);
 
   // Send file
-  const sendFile = (fileData) => {
-    socket.emit('send_file', fileData);
-  };
+  const sendFile = useCallback((fileData) => {
+    socketRef.current.emit('send_file', fileData);
+  }, []);
 
   // React to message
-  const reactToMessage = (messageId, reaction) => {
-    socket.emit('react_to_message', { messageId, reaction });
-  };
+  const reactToMessage = useCallback((messageId, reaction) => {
+    socketRef.current.emit('react_to_message', { messageId, reaction });
+  }, []);
 
   // Mark message as read
-  const markMessageRead = (messageId) => {
-    socket.emit('mark_message_read', messageId);
-  };
+  const markMessageRead = useCallback((messageId) => {
+    socketRef.current.emit('mark_message_read', messageId);
+  }, []);
 
   // Reconnect user
-  const reconnectUser = (userData) => {
-    socket.emit('reconnect_user', userData);
-  };
+  const reconnectUser = useCallback((userData) => {
+    socketRef.current.emit('reconnect_user', userData);
+  }, []);
 
   // Socket event listeners
   useEffect(() => {
+    const socketInstance = socketRef.current;
+
     // Connection events
     const onConnect = () => {
       setIsConnected(true);
-      console.log('Connected to server:', socket.id);
+      console.log('Connected to server:', socketInstance.id);
     };
 
     const onDisconnect = (reason) => {
@@ -128,7 +135,8 @@ export const useSocket = () => {
     };
 
     const onRoomMessages = (data) => {
-      if (data.room === currentRoom) {
+      // Use ref to avoid dependency on currentRoom
+      if (data.room === currentRoomRef.current) {
         setMessages(data.messages || []);
       }
     };
@@ -143,6 +151,11 @@ export const useSocket = () => {
 
     // Private message events
     const onPrivateMessage = (message) => {
+      setLastMessage(message);
+      // Also add to main messages for display
+      setMessages(prev => [...prev, message]);
+      
+      // Store in private messages map
       const conversationKey = [message.fromId, message.toId].sort().join('_');
       setPrivateMessages(prev => {
         const newMap = new Map(prev);
@@ -167,7 +180,7 @@ export const useSocket = () => {
     };
 
     const onMessageRead = ({ messageId, readAt }) => {
-      // Update message read status
+      // Update message read status in private messages
       setPrivateMessages(prev => {
         const newMap = new Map(prev);
         for (let [key, messages] of newMap) {
@@ -191,7 +204,7 @@ export const useSocket = () => {
       setMessages(prev => [
         ...prev,
         {
-          id: Date.now(),
+          id: Date.now().toString(),
           system: true,
           message: `${data.username} joined the room`,
           timestamp: new Date().toISOString(),
@@ -205,7 +218,7 @@ export const useSocket = () => {
       setMessages(prev => [
         ...prev,
         {
-          id: Date.now(),
+          id: Date.now().toString(),
           system: true,
           message: `${data.username} left the room`,
           timestamp: new Date().toISOString(),
@@ -222,15 +235,6 @@ export const useSocket = () => {
       setTypingUsers(users);
     };
 
-    // Room events
-    const onUserJoinedRoom = (data) => {
-      // Handle user joining specific room
-    };
-
-    const onUserLeftRoom = (data) => {
-      // Handle user leaving specific room
-    };
-
     // Message reactions
     const onMessageUpdated = (message) => {
       setMessageReactions(prev => {
@@ -238,6 +242,13 @@ export const useSocket = () => {
         newMap.set(message.id, message.reactions || []);
         return newMap;
       });
+      
+      // Also update the message in the main messages array
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === message.id ? { ...msg, reactions: message.reactions } : msg
+        )
+      );
     };
 
     // Error handling
@@ -247,46 +258,46 @@ export const useSocket = () => {
     };
 
     // Register event listeners
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('connect_error', onConnectError);
-    socket.on('receive_message', onReceiveMessage);
-    socket.on('room_messages', onRoomMessages);
-    socket.on('message_delivered', onMessageDelivered);
-    socket.on('private_message', onPrivateMessage);
-    socket.on('private_message_delivered', onPrivateMessageDelivered);
-    socket.on('message_read', onMessageRead);
-    socket.on('user_list', onUserList);
-    socket.on('user_joined', onUserJoined);
-    socket.on('user_left', onUserLeft);
-    socket.on('user_reconnected', onUserReconnected);
-    socket.on('typing_users', onTypingUsers);
-    socket.on('message_updated', onMessageUpdated);
-    socket.on('error', onError);
+    socketInstance.on('connect', onConnect);
+    socketInstance.on('disconnect', onDisconnect);
+    socketInstance.on('connect_error', onConnectError);
+    socketInstance.on('receive_message', onReceiveMessage);
+    socketInstance.on('room_messages', onRoomMessages);
+    socketInstance.on('message_delivered', onMessageDelivered);
+    socketInstance.on('private_message', onPrivateMessage);
+    socketInstance.on('private_message_delivered', onPrivateMessageDelivered);
+    socketInstance.on('message_read', onMessageRead);
+    socketInstance.on('user_list', onUserList);
+    socketInstance.on('user_joined', onUserJoined);
+    socketInstance.on('user_left', onUserLeft);
+    socketInstance.on('user_reconnected', onUserReconnected);
+    socketInstance.on('typing_users', onTypingUsers);
+    socketInstance.on('message_updated', onMessageUpdated);
+    socketInstance.on('error', onError);
 
     // Clean up event listeners
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('connect_error', onConnectError);
-      socket.off('receive_message', onReceiveMessage);
-      socket.off('room_messages', onRoomMessages);
-      socket.off('message_delivered', onMessageDelivered);
-      socket.off('private_message', onPrivateMessage);
-      socket.off('private_message_delivered', onPrivateMessageDelivered);
-      socket.off('message_read', onMessageRead);
-      socket.off('user_list', onUserList);
-      socket.off('user_joined', onUserJoined);
-      socket.off('user_left', onUserLeft);
-      socket.off('user_reconnected', onUserReconnected);
-      socket.off('typing_users', onTypingUsers);
-      socket.off('message_updated', onMessageUpdated);
-      socket.off('error', onError);
+      socketInstance.off('connect', onConnect);
+      socketInstance.off('disconnect', onDisconnect);
+      socketInstance.off('connect_error', onConnectError);
+      socketInstance.off('receive_message', onReceiveMessage);
+      socketInstance.off('room_messages', onRoomMessages);
+      socketInstance.off('message_delivered', onMessageDelivered);
+      socketInstance.off('private_message', onPrivateMessage);
+      socketInstance.off('private_message_delivered', onPrivateMessageDelivered);
+      socketInstance.off('message_read', onMessageRead);
+      socketInstance.off('user_list', onUserList);
+      socketInstance.off('user_joined', onUserJoined);
+      socketInstance.off('user_left', onUserLeft);
+      socketInstance.off('user_reconnected', onUserReconnected);
+      socketInstance.off('typing_users', onTypingUsers);
+      socketInstance.off('message_updated', onMessageUpdated);
+      socketInstance.off('error', onError);
     };
-  }, [currentRoom]);
+  }, []); // Empty dependency array since we use refs
 
   return {
-    socket,
+    socket: socketRef.current,
     isConnected,
     lastMessage,
     messages,

@@ -1,17 +1,18 @@
-// server.js - Enhanced version with advanced features
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
+// server.js - ES Module version
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Load environment variables
-dotenv.config();
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Initialize Express app
 const app = express();
-const server = http.createServer(app);
+const server = createServer(app);
 const io = new Server(server, {
   cors: {
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -26,8 +27,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Enhanced data storage
-const users = new Map(); // Use Map for better performance
-const rooms = new Map(); // Store rooms and their messages
+const users = new Map();
+const rooms = new Map();
 const typingUsers = new Map();
 const privateMessages = new Map();
 
@@ -130,7 +131,7 @@ io.on('connection', (socket) => {
       room: user.room,
       timestamp: new Date().toISOString(),
       type: messageData.type || 'text',
-      readBy: [socket.id] // Track read receipts
+      readBy: [socket.id]
     };
 
     // Store message in room
@@ -283,7 +284,7 @@ io.on('connection', (socket) => {
         name: fileData.name,
         type: fileData.type,
         size: fileData.size,
-        url: fileData.url // In production, this would be a CDN URL
+        url: fileData.url
       }
     };
 
@@ -366,7 +367,7 @@ io.on('connection', (socket) => {
         if (!users.get(socket.id)?.isOnline) {
           users.delete(socket.id);
         }
-      }, 30000); // 30 seconds grace period
+      }, 30000);
     }
   });
 
@@ -457,4 +458,4 @@ server.listen(PORT, () => {
   console.log(`🏠 Default rooms: ${defaultRooms.join(', ')}`);
 });
 
-module.exports = { app, server, io, users, rooms };
+export { app, server, io, users, rooms };
