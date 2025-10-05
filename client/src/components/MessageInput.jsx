@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useSocket } from '../context/SocketContext';
+import { useSocket } from '../context/useSocketHook';
 
 const MessageInput = () => {
   const [newMessage, setNewMessage] = useState('');

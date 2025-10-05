@@ -35,3 +35,9 @@ A full-stack real-time chat application built with React, Node.js, and Socket.io
    git clone <repository-url>
    cd socketio-chat-app
    npm run install-all
+
+
+
+SCREENSHOTS
+![alt text](image.png)
+![alt text](image-1.png)

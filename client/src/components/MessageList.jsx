@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useSocket } from '../context/SocketContext';
+import { useSocket } from '../context/useSocketHook';
 
 const MessageList = () => {
   const { messages, typingUsers, socket } = useSocket();
